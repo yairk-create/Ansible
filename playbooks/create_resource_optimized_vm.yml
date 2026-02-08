@@ -63,29 +63,21 @@
         msg: "Selected Node '{{ best_node }}' with {{ hostvars[best_node].ansible_facts.memory_mb.real.free }} MB free memory."
 
     - name: Clone VM on Best Node
-      command: "qm clone {{ template_vmid }} {{ new_vmid }} --name {{ new_vm_name }} --full 1"
-      environment:
-        PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      command: "/usr/sbin/qm clone {{ template_vmid }} {{ new_vmid }} --name {{ new_vm_name }} --full 1"
       delegate_to: "{{ best_node }}"
 
     - name: Configure VM Resources and SSH Key
       shell: |
         echo "{{ ssh_public_key }}" > /tmp/ssh_key.pub
-        qm set {{ new_vmid }} --memory {{ vm_memory }} --cores {{ vm_cores }} --sshkey /tmp/ssh_key.pub --ipconfig0 ip=dhcp
-      environment:
-        PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        /usr/sbin/qm set {{ new_vmid }} --memory {{ vm_memory }} --cores {{ vm_cores }} --sshkey /tmp/ssh_key.pub --ipconfig0 ip=dhcp
       delegate_to: "{{ best_node }}"
 
     - name: Start the New VM
-      command: "qm start {{ new_vmid }}"
-      environment:
-        PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      command: "/usr/sbin/qm start {{ new_vmid }}"
       delegate_to: "{{ best_node }}"
 
     - name: Wait for VM to Boot and Acquire IP
-      shell: "qm guest network-get-interfaces {{ new_vmid }} | grep 'ip-address' | grep '192.' | awk '{print $NF}' | head -n 1"
-      environment:
-        PATH: "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+      shell: "/usr/sbin/qm guest network-get-interfaces {{ new_vmid }} | grep 'ip-address' | grep '192.' | awk '{print $NF}' | head -n 1"
       delegate_to: "{{ best_node }}"
       register: vm_ip_raw
       until: vm_ip_raw.stdout != ""
