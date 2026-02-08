@@ -1,11 +1,17 @@
----
-- name: Gather Facts from Proxmox Nodes
+- name: Gather Facts and Verify Template on Proxmox Nodes
   hosts: proxmox_nodes
   gather_facts: yes
+  vars:
+    template_vmid: 500
+  tasks:
+    - name: Check if Template VMID {{ template_vmid }} exists on node
+      shell: "qm status {{ template_vmid }}"
+      register: template_check
+      ignore_errors: yes
+      changed_when: false
 
-- name: Determine Best Proxmox Node and Create VM
-  hosts: localhost
-  connection: local
+- name: Create VM on Best Resource Node
+  hosts: proxmox_nodes
   gather_facts: no
   vars_prompt:
     - name: new_vm_name
@@ -22,8 +28,8 @@
       private: no
 
   vars:
-    template_vmid: 500  # Default template ID found on your cluster
-    new_vmid: "{{ 9999 | random(start=1000) }}" 
+    template_vmid: 500
+    new_vmid: "{{ 9999 | random(start=1000) }}"
     ssh_public_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7UY67tBom83/SwISywjAjnk+moNdst/MZC7g587+aPvrzlQO49IFGPmAp6tiI59KfSX+hoZas/ZtQvsPBCryejQWus13FRuPYEMal21pnk4k/PvqI/uB8cqcyWUSwMk0JgS2Szg3K8NQgnx0Rs6ATSt= rsa-key-20250722"
     ppk_content: |
       PuTTY-User-Key-File-2: ssh-rsa
@@ -54,113 +60,122 @@
       Private-MAC: 8277c3177dc1463e2b5b26beb32684698155d623
 
   tasks:
-    - name: Find Best Node (Most Free Memory)
+    - name: Selection Phase (Identify Best Node with Template)
       set_fact:
-        best_node: "{{ hostvars | dict2items | selectattr('key', 'in', groups['proxmox_nodes']) | selectattr('value.ansible_facts', 'defined') | sort(attribute='value.ansible_facts.memory_mb.real.free', reverse=true) | map(attribute='key') | first }}"
+        best_node: "{{ hostvars | dict2items | selectattr('key', 'in', groups['proxmox_nodes']) | selectattr('value.ansible_facts', 'defined') | selectattr('value.template_check.rc', 'defined') | selectattr('value.template_check.rc', 'equalto', 0) | sort(attribute='value.ansible_facts.memory_mb.real.free', reverse=true) | map(attribute='key') | first | default('') }}"
+      run_once: true
 
-    - name: Report Selected Node
-      debug:
-        msg: "Selected Node '{{ best_node }}' with {{ hostvars[best_node].ansible_facts.memory_mb.real.free }} MB free memory."
-
-    - name: Clone VM on Best Node
-      command: "/usr/sbin/qm clone {{ template_vmid }} {{ new_vmid }} --name {{ new_vm_name }} --full 1"
-      delegate_to: "{{ best_node }}"
-
-    - name: Configure VM Resources and SSH Key
-      shell: |
-        echo "{{ ssh_public_key }}" > /tmp/ssh_key.pub
-        /usr/sbin/qm set {{ new_vmid }} --memory {{ vm_memory }} --cores {{ vm_cores }} --sshkey /tmp/ssh_key.pub --ipconfig0 ip=dhcp
-      delegate_to: "{{ best_node }}"
-
-    - name: Start the New VM
-      command: "/usr/sbin/qm start {{ new_vmid }}"
-      delegate_to: "{{ best_node }}"
-
-    - name: Wait for VM to Boot and Acquire IP
-      shell: "/usr/sbin/qm guest network-get-interfaces {{ new_vmid }} | grep 'ip-address' | grep '192.' | awk '{print $NF}' | head -n 1"
-      delegate_to: "{{ best_node }}"
-      register: vm_ip_raw
-      until: vm_ip_raw.stdout != ""
-      retries: 25
-      delay: 15
-      ignore_errors: yes
-
-    - name: Set VM IP
-      set_fact:
-        new_vm_ip: "{{ vm_ip_raw.stdout | trim }}"
-      when: vm_ip_raw.stdout != ""
-
-    - name: Alert if IP not found
+    - name: Fail if no node has the template
       fail:
-        msg: "VM started but could not retrieve IP. Please check Proxmox console."
-      when: new_vm_ip is not defined or new_vm_ip == ""
+        msg: "Criteria failed: Template VMID {{ template_vmid }} was not found on ANY Proxmox node. Please check your template ID."
+      when: best_node == ""
+      run_once: true
 
-- name: Provision the New VM
+    - name: VM Creation Phase
+      block:
+        - name: Clone VM
+          shell: "qm clone {{ template_vmid }} {{ new_vmid }} --name {{ new_vm_name }} --full 1"
+
+        - name: Configure Resources and Keys
+          shell: |
+            echo "{{ ssh_public_key }}" > /tmp/ssh_key.pub
+            qm set {{ new_vmid }} --memory {{ vm_memory }} --cores {{ vm_cores }} --sshkey /tmp/ssh_key.pub --ipconfig0 ip=dhcp
+
+        - name: Start VM
+          shell: "qm start {{ new_vmid }}"
+
+        - name: Wait for IP Address
+          shell: "qm guest network-get-interfaces {{ new_vmid }} | grep 'ip-address' | grep '192.' | awk '{print $NF}' | head -n 1"
+          register: vm_ip_raw
+          until: vm_ip_raw.stdout != ""
+          retries: 25
+          delay: 15
+
+        - name: Export IP
+          set_fact:
+            new_vm_ip: "{{ vm_ip_raw.stdout | trim }}"
+      when: inventory_hostname == best_node
+
+- name: Provisioning Phase
   hosts: localhost
+  connection: local
   gather_facts: no
   tasks:
-    - name: Add New VM to Temporary Inventory
+    - name: Fetch VM IP from Node
+      set_fact:
+        actual_vm_ip: "{{ hostvars[item].new_vm_ip }}"
+      when: hostvars[item].new_vm_ip is defined
+      loop: "{{ groups['proxmox_nodes'] }}"
+
+    - name: Register VM for provisioning
       add_host:
-        name: "{{ new_vm_ip }}"
+        name: "{{ actual_vm_ip }}"
         groups: temporarily_created_vms
         ansible_user: root
         ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+      when: actual_vm_ip is defined
 
-- name: Provision the New VM (Update, Users, and Key)
+- name: Final OS Setup Phase
   hosts: temporarily_created_vms
   gather_facts: yes
   become: yes
+  vars:
+    ppk_content: |
+      PuTTY-User-Key-File-2: ssh-rsa
+      Encryption: none
+      Comment: rsa-key-20250722
+      Public-Lines: 6
+      AAAAB3NzaC1yc2EAAAADAQABAAABAQC7UY67tBom83/SwISywjAjnk+moNdst/MZ
+      C7g587+aPvrzlQO49IFGPmAp6tiI59KfSX+hoZas/ZtQvsPBCryejQWus13FRuPY
+      EMal21pnk4k/PvqI/uB8cqcyWUSwMk0JgS2Szg3K8NQgnx0Rs6ATStvObxagPW3K
+      AXP89YK9DsvsZ93E6lEvAejtQAbhEWn+iaLOR4HwdBBhIMR2411IZk0s7SxCmLIm
+      pJnfy8qpkxlb2wvU1HHa7I/bgISpqlAKRpABiQLBqlFbI90MexJx9e3hxO6Vz+Vc
+      kOm8q2lLoOZO4kS0F/Ly49wqmNDTrcvzcL5umYwb/JA2WH8KBZyJ
+      Private-Lines: 14
+      AAABAAu3+nn7tnchXKnOqX6Vb3WK/eiqv09p4qd6eDgH68C2l/SNKgJ0KXI/jLyS
+      mKFX/3E/o+B0v3xrEUBn7s8w4MP6hpR7XC5vVOm7gvH1Wx6HuFpgkkPnzht7AMLB
+      mu569x7VGgjJI0vC7UJtMeBdoHIUiNPNV1kG/stYc+0rXtZ87wo5AZDYzjiRiqSl
+      thxgN3YwoIhbkbo9XIGfWo+np8tuJ5Bts1TCFO5xwiAMXKI41asuQn5CKGk1nVZB
+      YkbKIwDtOr/rpaW7n34jaA49FQ5i4ZmdxIstJE6ULHjpPbkeJ0PTiuV+hMOPOBQU
+      bxujagv/unzibhlCQ3PsGW6OC0EAAACBAOh0psfOb8RlTAzM4ZbJQEScxT1HgS2K
+      Wj6U/CUJQZGhEX0nBJvJ5+f0E7fjO0cLBD1yGlyTSsysfKCPgllPpOW+TnG1rLhr
+      UAsd1rCxvL6Xd9R1HZMpPOb9LDnYx+u7GwKm6oSq/eCumJzpIW3gQLgR6cyaBKWJ
+      Medz+uviNjRFAAAAgQDOSoumtKUREqdsWUqI8DXO0OcxRBVfRnBQPMqy+JuWA16d
+      qSuDlJM2jw65ac1pe8ARXCU7VjoOXkORpXxDUUD+tdnrBkdWfTw6JCUTRrEib1ni
+      smAKsabBswgWOPLPlgdtZdtbkaFMVId1/v/N14uxQ5IHRWoBkQVOtefa62bldQAA
+      AIEAsXJ4Vm8xp+JjsiC6swd3zT4ivRfgMx56uADHsa+CpJzXeixoayoMkw8nifVF
+      GZnPG5SErkHDBnvdjGzYwwIeRq7Sg4AWUfCXKNqaFxGOp+oHlzenwtbgH6RjMlRt
+      xyddsJXIuIZFpGrwN9wAV4596Ue2lDmO8WKcZ7ZIqGKT01E=
+      Private-MAC: 8277c3177dc1463e2b5b26beb32684698155d623
   tasks:
-    - name: Wait for SSH to be fully ready
+    - name: Wait for Connection
       wait_for_connection:
         timeout: 300
 
-    # --- OS Selection-Aware Update ---
-    - name: Update Debian/Ubuntu systems
-      apt: { update_cache: yes, upgrade: dist, autoremove: yes }
-      when: ansible_os_family == "Debian"
+    - name: Update Operating System (OS-Aware)
+      block:
+        - name: Update Debian/Ubuntu
+          apt: { update_cache: yes, upgrade: dist, autoremove: yes }
+          when: ansible_os_family == "Debian"
+        - name: Update RedHat
+          dnf: { name: "*", state: latest }
+          when: ansible_os_family == "RedHat"
+        - name: Update Arch
+          pacman: { update_cache: yes, upgrade: yes }
+          when: ansible_os_family == "Archlinux"
+        - name: Update Alpine
+          apk: { update_cache: yes, upgrade: yes }
+          when: ansible_os_family == "Alpine"
 
-    - name: Update RedHat systems
-      dnf: { name: "*", state: latest }
-      when: ansible_os_family == "RedHat"
-
-    - name: Update Arch Linux systems
-      pacman: { update_cache: yes, upgrade: yes }
-      when: ansible_os_family == "Archlinux"
-
-    - name: Update Alpine Linux systems
-      apk: { update_cache: yes, upgrade: yes }
-      when: ansible_os_family == "Alpine"
-
-    # --- Identity & Security Setup ---
-    - name: Set root password
-      user:
-        name: root
-        password: "{{ 'L0cal1t8' | password_hash('sha512') }}"
-
-    - name: Ensure sudo is installed
-      package:
-        name: sudo
-        state: present
-
-    - name: Create 'yair' user
-      user:
-        name: yair
-        password: "{{ 'L0cal1t8' | password_hash('sha512') }}"
-        shell: /bin/bash
-        groups: sudo
-        append: yes
-        state: present
-
-    - name: Allow 'yair' passwordless sudo
-      copy:
-        content: "yair ALL=(ALL) NOPASSWD: ALL"
-        dest: "/etc/sudoers.d/yair"
-        mode: '0440'
-        validate: "/usr/sbin/visudo -cf %s"
-
-    - name: Place Private PPK Key inside VM
-      copy:
-        content: "{{ hostvars['localhost'].ppk_content }}"
-        dest: "/root/rsa-key-20250722.ppk"
-        mode: '0600'
+    - name: Identity Setup (root and yair)
+      block:
+        - name: Set root password
+          user: { name: root, password: "{{ 'L0cal1t8' | password_hash('sha512') }}" }
+        - name: Ensure sudo
+          package: { name: sudo, state: present }
+        - name: Create 'yair' user
+          user: { name: yair, password: "{{ 'L0cal1t8' | password_hash('sha512') }}", groups: sudo, append: yes }
+        - name: Passwordless sudo
+          copy: { content: "yair ALL=(ALL) NOPASSWD: ALL", dest: "/etc/sudoers.d/yair", mode: '0440', validate: "/usr/sbin/visudo -cf %s" }
+        - name: Inject Private PPK
+          copy: { content: "{{ ppk_content }}", dest: "/root/rsa-key-20250722.ppk", mode: '0600' }
