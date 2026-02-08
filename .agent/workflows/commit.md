@@ -13,14 +13,17 @@ This workflow automates the process of identifying changes in your playbooks, ge
 git status
 ```
 
-### 2. Stage Playbook Changes
-Stage all modified and new playbooks.
+### 2. Update README.md Documentation
+The agent will review any new or modified playbooks and ensure the `README.md` contains a clear explanation and usage example for each one in the "Active Playbooks" section.
+
+### 3. Stage Playbook Changes
+Stage all modified and new playbooks, including the updated `README.md`.
 // turbo
 ```bash
-git add playbooks/*.yml ansible.cfg inventory/hosts.ini
+git add playbooks/*.yml ansible.cfg inventory/hosts.ini README.md .agent/workflows/*.md
 ```
 
-### 3. Commit and Push
+### 4. Commit and Push
 The agent will summarize the specific changes made (e.g., "Added a new scanning playbook for Proxmox") and push them to the main branch.
 // turbo
 ```bash

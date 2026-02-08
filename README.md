@@ -78,3 +78,8 @@ Passwords are fetched on-the-fly and never stored in the clear. Use the provided
 - **scan_network.yml**: Performs a ping sweep of the local network to discover active devices.
 - **scan_proxmox.yml**: Lists all Virtual Machines and Containers running on your Proxmox nodes.
 - **scan_facts.yml**: Gathers detailed system information (OS, hardware, IPs) from inventory hosts.
+- **create_resource_optimized_vm.yml**: Automatically chooses the Proxmox node with the most free RAM, asks for VM name/resources, clones from a template, and injects SSH keys.
+    ```bash
+    # Usage:
+    ansible-playbook -i inventory/hosts.ini playbooks/create_resource_optimized_vm.yml
+    ```
