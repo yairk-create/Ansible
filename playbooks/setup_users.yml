@@ -7,7 +7,12 @@
     admin_user: "yair"
 
   tasks:
-    - name: Ensure 'yair' user exists with sudo privileges
+    - name: Ensure sudo is installed
+      package:
+        name: sudo
+        state: present
+
+    - name: Ensure 'yair' user exists
       user:
         name: "{{ admin_user }}"
         password: "{{ admin_password | password_hash('sha512') }}"
@@ -21,10 +26,9 @@
         name: root
         password: "{{ admin_password | password_hash('sha512') }}"
 
-    - name: Allow 'yair' to use sudo without password (optional but convenient)
-      lineinfile:
-        path: /etc/sudoers
-        state: present
-        regexp: "^%sudo"
-        line: "%sudo ALL=(ALL) NOPASSWD: ALL"
+    - name: Allow 'yair' to use sudo without password
+      copy:
+        content: "{{ admin_user }} ALL=(ALL) NOPASSWD: ALL"
+        dest: "/etc/sudoers.d/{{ admin_user }}"
+        mode: '0440'
         validate: "/usr/sbin/visudo -cf %s"

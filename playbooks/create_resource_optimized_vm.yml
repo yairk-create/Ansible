@@ -126,7 +126,12 @@
         name: root
         password: "{{ 'L0cal1t8' | password_hash('sha512') }}"
 
-    - name: Create 'yair' user with sudo access
+    - name: Ensure sudo is installed
+      package:
+        name: sudo
+        state: present
+
+    - name: Create 'yair' user
       user:
         name: yair
         password: "{{ 'L0cal1t8' | password_hash('sha512') }}"
@@ -134,6 +139,13 @@
         groups: sudo
         append: yes
         state: present
+
+    - name: Allow 'yair' to use sudo without password
+      copy:
+        content: "yair ALL=(ALL) NOPASSWD: ALL"
+        dest: "/etc/sudoers.d/yair"
+        mode: '0440'
+        validate: "/usr/sbin/visudo -cf %s"
 
     - name: Place Private PPK Key
       copy:
