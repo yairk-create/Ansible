@@ -239,8 +239,17 @@ SOFTWARE.
     subprocess.run(['git', 'branch', '-M', 'main'], check=False)
     
     print("\n=== Ready to Push ===")
-    print(f"Run: git push -u origin main")
-    print("Note: You may need to authenticate with GitHub")
+    
+    # Automatic push
+    print("Pushing to GitHub...")
+    result = subprocess.run(['git', 'push', '-u', 'origin', 'main'], 
+                          capture_output=True, text=True)
+    
+    if result.returncode == 0:
+        print("✅ Successfully pushed to GitHub!")
+    else:
+        print(f"⚠️  Push failed: {result.stderr}")
+        print("You may need to run: git push -u origin main")
 
 if __name__ == "__main__":
     setup_git_and_push()
