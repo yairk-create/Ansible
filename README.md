@@ -73,19 +73,56 @@ Passwords are fetched on-the-fly and never stored in the clear. Use the provided
 ## 🚀 Active Playbooks
 
 - [debug_vault.yml](playbooks/debug_vault_README.md)
-- [site.yml](playbooks/site_README.md)
-- [verify_connectivity.yml](playbooks/verify_connectivity_README.md)
-- **scan_network.yml**: Performs a ping sweep of the local network to discover active devices.
-    *   **Usage**: `ansible-playbook playbooks/scan_network.yml`
-    *   **Requires**: `nmap` installed on the control node.
-- **scan_proxmox.yml**: Lists all Virtual Machines and Containers running on your Proxmox nodes.
-    *   **Usage**: `ansible-playbook -i inventory/hosts.ini playbooks/scan_proxmox.yml`
-    *   **Requires**: Unlocked Bitwarden session.
-- **scan_facts.yml**: Gathers detailed system information (OS, hardware, IPs) from inventory hosts.
-    *   **Usage**: `ansible-playbook -i inventory/hosts.ini playbooks/scan_facts.yml`
-- **create_resource_optimized_vm.yml**: Automatically chooses the Proxmox node with the most free RAM, asks for VM name/resources, clones from a template, and injects SSH keys.
-    *   **Usage**: `ansible-playbook -i inventory/hosts.ini playbooks/create_resource_optimized_vm.yml`
-    *   **Features**: Interactive prompts, automatic resource selection, system updates, and key injection.
+- [site.yml](playbooks/site_README.md): **Core Infrastructure Suite**. Configures both Proxmox nodes and Linux guests with baseline security.
+- [verify_connectivity.yml](playbooks/verify_connectivity_README.md): **Diagnostic Tool**. Essential for troubleshooting Vaultwarden and SSH access.
+
+---
+
+### 🔍 Specialized Asset Scanning
+
+- **`scan_network.yml`**: **Network Discovery Scan**
+    *   **Logic**: Uses `nmap -sn` to sweep your local subnet.
+    *   **Highlights**: Filters output to show only reachable IPs.
+    *   **Usage**: 
+        ```bash
+        # Ensure nmap is installed: sudo apt install nmap
+        ansible-playbook playbooks/scan_network.yml
+        ```
+
+- **`scan_proxmox.yml`**: **Cluster Inventory Discovery**
+    *   **Logic**: Uses `qm list` and `pct list` on Proxmox nodes.
+    *   **Highlights**: Shows both Virtual Machines (QEMU) and Containers (LXC).
+    *   **Usage**: 
+        ```bash
+        source unlock_vault.sh
+        ansible-playbook -i inventory/hosts.ini playbooks/scan_proxmox.yml
+        ```
+
+- **`scan_facts.yml`**: **Deep Host Fact Gathering**
+    *   **Logic**: Uses Ansible's `setup` module to pull detailed hardware/OS telemetry.
+    *   **Highlights**: Generates a clear summary of Hostname, OS, IP, RAM, and CPU Cores.
+    *   **Usage**: 
+        ```bash
+        ansible-playbook -i inventory/hosts.ini playbooks/scan_facts.yml
+        ```
+
+---
+
+### 🏗️ Advanced Provisioning
+
+- **`create_resource_optimized_vm.yml`**: **Smart VM Orchestrator**
+    *   **Logic**: 
+        1. Gathers real-time RAM metrics across the entire cluster.
+        2. Selects the "Best Node" (highest free memory).
+        3. Interactively prompts for VM name and resource allocation (RAM/CPU).
+        4. Clones from template ID 500.
+        5. Injects Public/Private SSH keys and performs a system update.
+    *   **Highlights**: Prevents overloading nodes by making resource-aware decisions.
+    *   **Usage**: 
+        ```bash
+        source unlock_vault.sh
+        ansible-playbook -i inventory/hosts.ini playbooks/create_resource_optimized_vm.yml
+        ```
 
 ---
 

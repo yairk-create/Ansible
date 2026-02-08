@@ -56,28 +56,28 @@
   tasks:
     - name: Find Best Node (Most Free Memory)
       set_fact:
-        best_node: "{{ hostvars | dict2items | selectattr('key', 'in', groups['proxmox_nodes']) | sort(attribute='value.ansible_facts.memory_mb.real.free', reverse=true) | map(attribute='key') | first }}"
+        best_node: "{{ hostvars | dict2items | selectattr('key', 'in', groups['proxmox_nodes']) | selectattr('value.ansible_facts', 'defined') | sort(attribute='value.ansible_facts.memory_mb.real.free', reverse=true) | map(attribute='key') | first }}"
 
     - name: Report Selected Node
       debug:
         msg: "Selected Node '{{ best_node }}' with {{ hostvars[best_node].ansible_facts.memory_mb.real.free }} MB free memory."
 
     - name: Clone VM on Best Node
-      shell: "/usr/sbin/qm clone {{ template_vmid }} {{ new_vmid }} --name {{ new_vm_name }} --full 1"
+      shell: "PATH=$PATH:/usr/sbin qm clone {{ template_vmid }} {{ new_vmid }} --name {{ new_vm_name }} --full 1"
       delegate_to: "{{ best_node }}"
 
     - name: Configure VM Resources and SSH Key
       shell: |
         echo "{{ ssh_public_key }}" > /tmp/ssh_key.pub
-        /usr/sbin/qm set {{ new_vmid }} --memory {{ vm_memory }} --cores {{ vm_cores }} --sshkey /tmp/ssh_key.pub --ipconfig0 ip=dhcp
+        PATH=$PATH:/usr/sbin qm set {{ new_vmid }} --memory {{ vm_memory }} --cores {{ vm_cores }} --sshkey /tmp/ssh_key.pub --ipconfig0 ip=dhcp
       delegate_to: "{{ best_node }}"
 
     - name: Start the New VM
-      shell: "/usr/sbin/qm start {{ new_vmid }}"
+      shell: "PATH=$PATH:/usr/sbin qm start {{ new_vmid }}"
       delegate_to: "{{ best_node }}"
 
     - name: Wait for VM to Boot and Acquire IP
-      shell: "/usr/sbin/qm guest network-get-interfaces {{ new_vmid }} | grep 'ip-address' | grep '192.' | awk '{print $NF}' | head -n 1"
+      shell: "PATH=$PATH:/usr/sbin qm guest network-get-interfaces {{ new_vmid }} | grep 'ip-address' | grep '192.' | awk '{print $NF}' | head -n 1"
       delegate_to: "{{ best_node }}"
       register: vm_ip_raw
       until: vm_ip_raw.stdout != ""
