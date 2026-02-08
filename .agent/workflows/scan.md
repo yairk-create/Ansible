@@ -40,12 +40,3 @@ LC_ALL=C.UTF-8 LANG=C.UTF-8 ./venv/bin/ansible-playbook -i inventory/hosts.ini p
 LC_ALL=C.UTF-8 LANG=C.UTF-8 ./venv/bin/ansible-playbook -i inventory/hosts.ini playbooks/scan_proxmox.yml && \
 LC_ALL=C.UTF-8 LANG=C.UTF-8 ./venv/bin/ansible-playbook playbooks/scan_network.yml
 ```
-
-### 5. Validate Playbooks (Syntax Check)
-Checks all scanning playbooks for syntax errors.
-// turbo
-```bash
-LC_ALL=C.UTF-8 LANG=C.UTF-8 ./venv/bin/ansible-playbook --syntax-check playbooks/scan_facts.yml && \
-LC_ALL=C.UTF-8 LANG=C.UTF-8 ./venv/bin/ansible-playbook --syntax-check playbooks/scan_proxmox.yml && \
-LC_ALL=C.UTF-8 LANG=C.UTF-8 ./venv/bin/ansible-playbook --syntax-check playbooks/scan_network.yml
-```

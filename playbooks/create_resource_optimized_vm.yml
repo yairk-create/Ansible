@@ -1,0 +1,119 @@
+---
+- name: Determine Best Proxmox Node and Create VM
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    template_vmid: 500  # Default template ID found on your cluster
+    new_vmid: "{{ 1000 | random(start=1000) }}" # Generating a new ID in 1000+ range
+    new_vm_name: "auto-vm-{{ lookup('pipe', 'date +%Y%m%d%H%M') }}"
+    ssh_public_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7UY67tBom83/SwISywjAjnk+moNdst/MZC7g587+aPvrzlQO49IFGPmAp6tiI59KfSX+hoZas/ZtQvsPBCryejQWus13FRuPYEMal21pnk4k/PvqI/uB8cqcyWUSwMk0JgS2Szg3K8NQgnx0Rs6ATSt= rsa-key-20250722"
+    ppk_content: |
+      PuTTY-User-Key-File-2: ssh-rsa
+      Encryption: none
+      Comment: rsa-key-20250722
+      Public-Lines: 6
+      AAAAB3NzaC1yc2EAAAADAQABAAABAQC7UY67tBom83/SwISywjAjnk+moNdst/MZ
+      C7g587+aPvrzlQO49IFGPmAp6tiI59KfSX+hoZas/ZtQvsPBCryejQWus13FRuPY
+      EMal21pnk4k/PvqI/uB8cqcyWUSwMk0JgS2Szg3K8NQgnx0Rs6ATStvObxagPW3K
+      AXP89YK9DsvsZ93E6lEvAejtQAbhEWn+iaLOR4HwdBBhIMR2411IZk0s7SxCmLIm
+      pJnfy8qpkxlb2wvU1HHa7I/bgISpqlAKRpABiQLBqlFbI90MexJx9e3hxO6Vz+Vc
+      kOm8q2lLoOZO4kS0F/Ly49wqmNDTrcvzcL5umYwb/JA2WH8KBZyJ
+      Private-Lines: 14
+      AAABAAu3+nn7tnchXKnOqX6Vb3WK/eiqv09p4qd6eDgH68C2l/SNKgJ0KXI/jLyS
+      mKFX/3E/o+B0v3xrEUBn7s8w4MP6hpR7XC5vVOm7gvH1Wx6HuFpgkkPnzht7AMLB
+      mu569x7VGgjJI0vC7UJtMeBdoHIUiNPNV1kG/stYc+0rXtZ87wo5AZDYzjiRiqSl
+      thxgN3YwoIhbkbo9XIGfWo+np8tuJ5Bts1TCFO5xwiAMXKI41asuQn5CKGk1nVZB
+      YkbKIwDtOr/rpaW7n34jaA49FQ5i4ZmdxIstJE6ULHjpPbkeJ0PTiuV+hMOPOBQU
+      bxujagv/unzibhlCQ3PsGW6OC0EAAACBAOh0psfOb8RlTAzM4ZbJQEScxT1HgS2K
+      Wj6U/CUJQZGhEX0nBJvJ5+f0E7fjO0cLBD1yGlyTSsysfKCPgllPpOW+TnG1rLhr
+      UAsd1rCxvL6Xd9R1HZMpPOb9LDnYx+u7WgKm6oSq/eCumJzpIW3gQLgR6cyaBKWJ
+      Medz+uviNjRFAAAAgQDOSoumtKUREqdsWUqI8DXO0OcxRBVfRnBQPMqy+JuWA16d
+      qSuDlJM2jw65ac1pe8ARXCU7VjoOXkORpXxDUUD+tdnrBkdWfTw6JCUTRrEib1ni
+      smAKsabBswgWOPLPlgdtZdtbkaFMVId1/v/N14uxQ5IHRWoBkQVOtefa62bldQAA
+      AIEAsXJ4Vm8xp+JjsiC6swd3zT4ivRfgMx56uADHsa+CpJzXeixoayoMkw8nifVF
+      GZnPG5SErkHDBnvdjGzYwwIeRq7Sg4AWUfCXKNqaFxGOp+oHlzenwtbgH6RjMlRt
+      xyddsJXIuIZFpGrwN9wAV4596Ue2lDmO8WKcZ7ZIqGKT01E=
+      Private-MAC: 8277c3177dc1463e2b5b26beb32684698155d623
+
+  tasks:
+    - name: Gather Facts from Proxmox Nodes
+      setup:
+        gather_subset:
+          - hardware
+      delegate_to: "{{ item }}"
+      loop: "{{ groups['proxmox_nodes'] }}"
+      register: node_facts
+
+    - name: Find Best Node (Most Free Memory)
+      set_fact:
+        best_node: "{{ hostvars | dict2items | selectattr('key', 'in', groups['proxmox_nodes']) | sort(attribute='value.ansible_memfree_mb', reverse=true) | map(attribute='key') | first }}"
+
+    - name: Report Selected Node
+      debug:
+        msg: "Selected Node '{{ best_node }}' with {{ hostvars[best_node].ansible_memfree_mb }} MB free memory."
+
+    - name: Clone VM on Best Node
+      command: "qm clone {{ template_vmid }} {{ new_vmid }} --name {{ new_vm_name }} --full 1"
+      delegate_to: "{{ best_node }}"
+      register: clone_result
+
+    - name: Configure SSH Key and Cloud-Init
+      shell: |
+        echo "{{ ssh_public_key }}" > /tmp/ssh_key.pub
+        qm set {{ new_vmid }} --sshkey /tmp/ssh_key.pub
+        qm set {{ new_vmid }} --ipconfig0 ip=dhcp
+      delegate_to: "{{ best_node }}"
+
+    - name: Start the New VM
+      command: "qm start {{ new_vmid }}"
+      delegate_to: "{{ best_node }}"
+
+    - name: Wait for VM to Boot and Acquire IP (via Guest Agent)
+      shell: "qm guest network-get-interfaces {{ new_vmid }} | grep 'ip-address' | grep '192.' | awk '{print $NF}' | head -n 1"
+      delegate_to: "{{ best_node }}"
+      register: vm_ip_raw
+      until: vm_ip_raw.stdout != ""
+      retries: 20
+      delay: 15
+      ignore_errors: yes
+
+    - name: Set VM IP
+      set_fact:
+        new_vm_ip: "{{ vm_ip_raw.stdout | default('') }}"
+
+    - name: Alert if IP not found
+      fail:
+        msg: "VM started but could not retrieve IP. Please check Proxmox console."
+      when: new_vm_ip == ""
+
+- name: Provision the New VM (Update and Key Placement)
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Add New VM to Temporary Inventory
+      add_host:
+        name: "{{ hostvars['localhost'].new_vm_ip }}"
+        groups: temporarily_created_vms
+        ansible_user: root  # Assuming template uses root
+        ansible_ssh_private_key_file: "~/.ssh/id_rsa" # You might need to provide the local key that matches the public one
+
+- name: Run Updates on New VM
+  hosts: temporarily_created_vms
+  become: yes
+  tasks:
+    - name: Ensure SSH is ready
+      wait_for_connection:
+        timeout: 300
+
+    - name: Update and Upgrade System
+      apt:
+        update_cache: yes
+        upgrade: dist
+      when: ansible_os_family == 'Debian'
+
+    - name: Place the Private PPK Key inside the VM (as requested)
+      copy:
+        content: "{{ hostvars['localhost'].ppk_content }}"
+        dest: "/root/rsa-key-20250722.ppk"
+        mode: '0600'
