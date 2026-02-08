@@ -80,3 +80,17 @@ Passwords are fetched on-the-fly and never stored in the clear. Use the provided
 - **scan_facts.yml**: Gathers OS and hardware details from inventory.
 - **scan_proxmox.yml**: Lists all active VMs and Containers on Proxmox nodes.
 - **scan_network.yml**: Performs network discovery on the local subnet.
+
+---
+
+## ✅ Playbook Validation
+
+To ensure the playbooks are error-free before running, use the following commands:
+
+```bash
+source venv/bin/activate
+export LC_ALL=C.UTF-8 LANG=C.UTF-8
+ansible-playbook --syntax-check playbooks/scan_facts.yml
+ansible-playbook --syntax-check playbooks/scan_proxmox.yml
+ansible-playbook --syntax-check playbooks/scan_network.yml
+```
