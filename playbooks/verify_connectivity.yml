@@ -1,0 +1,40 @@
+---
+- name: Verify Local Environment and Vaultwarden
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    # Change 'test_item' to the name of an actual item in your Vaultwarden to test retrieval
+    test_item_name: "proxmox_pve1_root" 
+  tasks:
+    - name: Check if Bitwarden (bw) is installed
+      command: which bw
+      register: bw_check
+      ignore_errors: yes
+
+    - name: Fail if bw is missing
+      fail:
+        msg: "Bitwarden CLI 'bw' is not installed. Please run ./setup.sh"
+      when: bw_check.rc != 0
+
+    - name: Check Bitwarden Login Status
+      command: bw status
+      register: bw_status
+      changed_when: false
+
+    - name: Verify Vaultwarden Session
+      fail:
+        msg: "Bitwarden is locked or not logged in. Run 'bw login' and export BW_SESSION."
+      when: "'unauthenticated' in bw_status.stdout or 'locked' in bw_status.stdout"
+
+    - name: Test Secret Retrieval (Optional - requires item 'proxmox_pve1_root')
+      debug:
+        msg: "Retrieved secret: {{ lookup('community.general.bitwarden', test_item_name, field='password') | default('Not found - this is expected if item does not exist') }}"
+      ignore_errors: yes
+
+- name: Verify Proxmox Connectivity
+  hosts: proxmox_nodes
+  gather_facts: no
+  tasks:
+    - name: Ping Proxmox Node
+      ping:

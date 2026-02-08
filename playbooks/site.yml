@@ -1,0 +1,54 @@
+---
+- name: Configure Linux Guests
+  hosts: linux_guests
+  become: yes
+  vars:
+    # Security: Ensure these vars are encrypted with Ansible Vault in a real scenario
+    # user_password: "...encrypted_string..."
+
+  tasks:
+    - name: Ensure system is updated
+      apt:
+        update_cache: yes
+        upgrade: dist
+      when: ansible_os_family == 'Debian'
+
+    - name: Install essential packages
+      package:
+        name:
+          - curl
+          - git
+          - ufw
+          - fail2ban
+        state: present
+
+    - name: Configure SSH Daemon
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      loop:
+        - { regexp: '^PermitRootLogin', line: 'PermitRootLogin no' }
+        - { regexp: '^PasswordAuthentication', line: 'PasswordAuthentication no' }
+      notify: Restart SSH
+
+
+  handlers:
+    - name: Restart SSH
+      service:
+        name: sshd
+        state: restarted
+
+- name: Configure Proxmox Nodes
+  hosts: proxmox_nodes
+  become: yes
+  vars:
+    # Example: Retrieve Proxmox root password from Vaultwarden
+    # pro_password: "{{ lookup('community.general.bitwarden', 'proxmox_pve1_root', field='password') }}"
+  tasks:
+    - name: Ensure Proxmox packages are updated (safe update)
+      apt:
+        update_cache: yes
+        upgrade: yes
+

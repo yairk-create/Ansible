@@ -1,0 +1,26 @@
+---
+- name: Debug Vault Lookup
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    search_term: "proxmox_root"
+  tasks:
+    - name: Try to lookup the password
+      debug:
+        msg: "Found password: '{{ lookup('community.general.bitwarden', search_term, field='password') }}'"
+      ignore_errors: yes
+
+    - name: List all items matching search term (raw JSON)
+      command: "bw list items --search {{ search_term }}"
+      register: bw_list
+      changed_when: false
+
+    - name: Show matching items
+      debug:
+        var: bw_list.stdout
+
+    - name: Suggestion
+      debug:
+        msg: "If the password is empty above, run 'bw sync' in your terminal and ensure an item named '{{ search_term }}' exists with the username 'root' and password set."
+      when: "(lookup('community.general.bitwarden', search_term, field='password') | length) == 0"

@@ -1,0 +1,36 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Ansible
+*.retry
+.vault_password
+
+# Secrets & Credentials
+**/group_vars/**/vault.yml
+**/host_vars/**/vault.yml
+unlock_vault.sh
+create_item.json
+*.json
+!ansible.cfg
+
+# Bitwarden
+.config/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.swp
+*.swo
+*~
+t.json
+payload.json
+full_template.json
+item_template.json
+template.json

@@ -1,0 +1,5 @@
+---
+# Connection variables for Proxmox Nodes
+# Retrieves password from Vaultwarden item 'proxmox_root'
+ansible_user: root
+ansible_password: "{{ lookup('community.general.bitwarden', 'proxmox_root', field='password') | first }}"
