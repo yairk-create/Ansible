@@ -1,0 +1,30 @@
+---
+- name: Setup Administrative Users and Passwords
+  hosts: all
+  become: yes
+  vars:
+    admin_password: "L0cal1t8"
+    admin_user: "yair"
+
+  tasks:
+    - name: Ensure 'yair' user exists with sudo privileges
+      user:
+        name: "{{ admin_user }}"
+        password: "{{ admin_password | password_hash('sha512') }}"
+        shell: /bin/bash
+        groups: sudo
+        append: yes
+        state: present
+
+    - name: Set root password
+      user:
+        name: root
+        password: "{{ admin_password | password_hash('sha512') }}"
+
+    - name: Allow 'yair' to use sudo without password (optional but convenient)
+      lineinfile:
+        path: /etc/sudoers
+        state: present
+        regexp: "^%sudo"
+        line: "%sudo ALL=(ALL) NOPASSWD: ALL"
+        validate: "/usr/sbin/visudo -cf %s"

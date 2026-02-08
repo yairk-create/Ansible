@@ -121,6 +121,20 @@
         upgrade: dist
       when: ansible_os_family == 'Debian'
 
+    - name: Set root password
+      user:
+        name: root
+        password: "{{ 'L0cal1t8' | password_hash('sha512') }}"
+
+    - name: Create 'yair' user with sudo access
+      user:
+        name: yair
+        password: "{{ 'L0cal1t8' | password_hash('sha512') }}"
+        shell: /bin/bash
+        groups: sudo
+        append: yes
+        state: present
+
     - name: Place Private PPK Key
       copy:
         content: "{{ hostvars['localhost'].ppk_content }}"

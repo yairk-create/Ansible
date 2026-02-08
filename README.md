@@ -124,6 +124,11 @@ Passwords are fetched on-the-fly and never stored in the clear. Use the provided
         ansible-playbook -i inventory/hosts.ini playbooks/create_resource_optimized_vm.yml
         ```
 
+- **`setup_users.yml`**: **User & Privilege Management**
+    *   **Logic**: Creates the `yair` user with sudo access and resets the `root` password.
+    *   **Highlights**: Uses secure SHA-512 hashing for passwords.
+    *   **Usage**: `ansible-playbook -i inventory/hosts.ini playbooks/setup_users.yml`
+
 ---
 
 ## 🤖 Agent Operations (Git integration)
