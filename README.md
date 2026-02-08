@@ -12,10 +12,9 @@ Efficient, secure, and automated management for your Proxmox cluster and Linux e
 ## 🌟 Key Features
 
 - **🛡️ Secure Secret Management**: Native integration with **Vaultwarden (Bitwarden)** ensures no plain-text passwords ever touch your disk.
-- **🔍 Device Scanning**: New playbooks for network discovery, Proxmox guest enumeration, and host fact gathering.
 - **🖥️ Proxmox Orchestration**: Automated updates and configuration for Proxmox VE nodes.
 - **🐧 Linux Hardening**: Base configuration for Linux guests including SSH hardening, package management, and basic security tools.
-- **🤖 Agent Workflows**: Built-in `/scan` and `/commit` commands to automate infrastructure management and documentation.
+- **📖 Auto-Documentation**: Integrated agent that keeps documentation in sync with playbook changes.
 - **🚀 One-Click Setup**: Streamlined environment preparation script.
 
 ---
@@ -24,7 +23,6 @@ Efficient, secure, and automated management for your Proxmox cluster and Linux e
 
 ```text
 .
-├── 📂 .agent/             # Custom agent workflows (/scan, /commit)
 ├── 📂 playbooks/          # Production-ready Ansible playbooks
 ├── 📂 inventory/          # Infrastructure topology definition
 │   ├── hosts.ini         # Main inventory file
@@ -77,20 +75,6 @@ Passwords are fetched on-the-fly and never stored in the clear. Use the provided
 - [debug_vault.yml](playbooks/debug_vault_README.md)
 - [site.yml](playbooks/site_README.md)
 - [verify_connectivity.yml](playbooks/verify_connectivity_README.md)
-- **scan_facts.yml**: Gathers OS and hardware details from inventory.
-- **scan_proxmox.yml**: Lists all active VMs and Containers on Proxmox nodes.
-- **scan_network.yml**: Performs network discovery on the local subnet.
-
----
-
-## ✅ Playbook Validation
-
-To ensure the playbooks are error-free before running, use the following commands:
-
-```bash
-source venv/bin/activate
-export LC_ALL=C.UTF-8 LANG=C.UTF-8
-ansible-playbook --syntax-check playbooks/scan_facts.yml
-ansible-playbook --syntax-check playbooks/scan_proxmox.yml
-ansible-playbook --syntax-check playbooks/scan_network.yml
-```
+- **scan_network.yml**: Performs a ping sweep of the local network to discover active devices.
+- **scan_proxmox.yml**: Lists all Virtual Machines and Containers running on your Proxmox nodes.
+- **scan_facts.yml**: Gathers detailed system information (OS, hardware, IPs) from inventory hosts.
