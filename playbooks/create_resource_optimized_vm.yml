@@ -1,12 +1,29 @@
 ---
+- name: Gather Facts from Proxmox Nodes
+  hosts: proxmox_nodes
+  gather_facts: yes
+
 - name: Determine Best Proxmox Node and Create VM
   hosts: localhost
   connection: local
   gather_facts: no
+  vars_prompt:
+    - name: new_vm_name
+      prompt: "Enter the name for the new VM"
+      default: "auto-vm"
+      private: no
+    - name: vm_memory
+      prompt: "Enter RAM in MB"
+      default: "2048"
+      private: no
+    - name: vm_cores
+      prompt: "Enter number of CPU cores"
+      default: "2"
+      private: no
+
   vars:
     template_vmid: 500  # Default template ID found on your cluster
-    new_vmid: "{{ 1000 | random(start=1000) }}" # Generating a new ID in 1000+ range
-    new_vm_name: "auto-vm-{{ lookup('pipe', 'date +%Y%m%d%H%M') }}"
+    new_vmid: "{{ 1000 | random(start=1000, step=1) }}" 
     ssh_public_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7UY67tBom83/SwISywjAjnk+moNdst/MZC7g587+aPvrzlQO49IFGPmAp6tiI59KfSX+hoZas/ZtQvsPBCryejQWus13FRuPYEMal21pnk4k/PvqI/uB8cqcyWUSwMk0JgS2Szg3K8NQgnx0Rs6ATSt= rsa-key-20250722"
     ppk_content: |
       PuTTY-User-Key-File-2: ssh-rsa
@@ -37,82 +54,74 @@
       Private-MAC: 8277c3177dc1463e2b5b26beb32684698155d623
 
   tasks:
-    - name: Gather Facts from Proxmox Nodes
-      setup:
-        gather_subset:
-          - hardware
-      delegate_to: "{{ item }}"
-      loop: "{{ groups['proxmox_nodes'] }}"
-      register: node_facts
-
     - name: Find Best Node (Most Free Memory)
       set_fact:
-        best_node: "{{ hostvars | dict2items | selectattr('key', 'in', groups['proxmox_nodes']) | sort(attribute='value.ansible_memfree_mb', reverse=true) | map(attribute='key') | first }}"
+        best_node: "{{ hostvars | dict2items | selectattr('key', 'in', groups['proxmox_nodes']) | sort(attribute='value.ansible_memory_mb.real.free', reverse=true) | map(attribute='key') | first }}"
 
     - name: Report Selected Node
       debug:
-        msg: "Selected Node '{{ best_node }}' with {{ hostvars[best_node].ansible_memfree_mb }} MB free memory."
+        msg: "Selected Node '{{ best_node }}' with {{ hostvars[best_node].ansible_memory_mb.real.free }} MB free memory."
 
     - name: Clone VM on Best Node
       command: "qm clone {{ template_vmid }} {{ new_vmid }} --name {{ new_vm_name }} --full 1"
       delegate_to: "{{ best_node }}"
-      register: clone_result
 
-    - name: Configure SSH Key and Cloud-Init
+    - name: Configure VM Resources and SSH Key
       shell: |
         echo "{{ ssh_public_key }}" > /tmp/ssh_key.pub
-        qm set {{ new_vmid }} --sshkey /tmp/ssh_key.pub
-        qm set {{ new_vmid }} --ipconfig0 ip=dhcp
+        qm set {{ new_vmid }} --memory {{ vm_memory }} --cores {{ vm_cores }} --sshkey /tmp/ssh_key.pub --ipconfig0 ip=dhcp
       delegate_to: "{{ best_node }}"
 
     - name: Start the New VM
       command: "qm start {{ new_vmid }}"
       delegate_to: "{{ best_node }}"
 
-    - name: Wait for VM to Boot and Acquire IP (via Guest Agent)
+    - name: Wait for VM to Boot and Acquire IP
       shell: "qm guest network-get-interfaces {{ new_vmid }} | grep 'ip-address' | grep '192.' | awk '{print $NF}' | head -n 1"
       delegate_to: "{{ best_node }}"
       register: vm_ip_raw
       until: vm_ip_raw.stdout != ""
-      retries: 20
+      retries: 25
       delay: 15
       ignore_errors: yes
 
     - name: Set VM IP
       set_fact:
-        new_vm_ip: "{{ vm_ip_raw.stdout | default('') }}"
+        new_vm_ip: "{{ vm_ip_raw.stdout | trim }}"
+      when: vm_ip_raw.stdout != ""
 
     - name: Alert if IP not found
       fail:
         msg: "VM started but could not retrieve IP. Please check Proxmox console."
-      when: new_vm_ip == ""
+      when: new_vm_ip is not defined or new_vm_ip == ""
 
-- name: Provision the New VM (Update and Key Placement)
-  hosts: all
+- name: Provision the New VM
+  hosts: localhost
   gather_facts: no
   tasks:
     - name: Add New VM to Temporary Inventory
       add_host:
-        name: "{{ hostvars['localhost'].new_vm_ip }}"
+        name: "{{ new_vm_ip }}"
         groups: temporarily_created_vms
-        ansible_user: root  # Assuming template uses root
-        ansible_ssh_private_key_file: "~/.ssh/id_rsa" # You might need to provide the local key that matches the public one
+        ansible_user: root
+        ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 
-- name: Run Updates on New VM
+- name: Update and Inject Key inside the VM
   hosts: temporarily_created_vms
+  gather_facts: yes
   become: yes
   tasks:
-    - name: Ensure SSH is ready
+    - name: Wait for SSH to be fully ready
       wait_for_connection:
         timeout: 300
 
-    - name: Update and Upgrade System
+    - name: Update System
       apt:
         update_cache: yes
         upgrade: dist
       when: ansible_os_family == 'Debian'
 
-    - name: Place the Private PPK Key inside the VM (as requested)
+    - name: Place Private PPK Key
       copy:
         content: "{{ hostvars['localhost'].ppk_content }}"
         dest: "/root/rsa-key-20250722.ppk"
