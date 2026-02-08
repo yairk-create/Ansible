@@ -76,10 +76,24 @@ Passwords are fetched on-the-fly and never stored in the clear. Use the provided
 - [site.yml](playbooks/site_README.md)
 - [verify_connectivity.yml](playbooks/verify_connectivity_README.md)
 - **scan_network.yml**: Performs a ping sweep of the local network to discover active devices.
+    *   **Usage**: `ansible-playbook playbooks/scan_network.yml`
+    *   **Requires**: `nmap` installed on the control node.
 - **scan_proxmox.yml**: Lists all Virtual Machines and Containers running on your Proxmox nodes.
+    *   **Usage**: `ansible-playbook -i inventory/hosts.ini playbooks/scan_proxmox.yml`
+    *   **Requires**: Unlocked Bitwarden session.
 - **scan_facts.yml**: Gathers detailed system information (OS, hardware, IPs) from inventory hosts.
+    *   **Usage**: `ansible-playbook -i inventory/hosts.ini playbooks/scan_facts.yml`
 - **create_resource_optimized_vm.yml**: Automatically chooses the Proxmox node with the most free RAM, asks for VM name/resources, clones from a template, and injects SSH keys.
-    ```bash
-    # Usage:
-    ansible-playbook -i inventory/hosts.ini playbooks/create_resource_optimized_vm.yml
-    ```
+    *   **Usage**: `ansible-playbook -i inventory/hosts.ini playbooks/create_resource_optimized_vm.yml`
+    *   **Features**: Interactive prompts, automatic resource selection, system updates, and key injection.
+
+---
+
+## 🤖 Agent Operations (Git integration)
+
+This repository includes specialized AI agents to automate common tasks:
+
+- **`/scan`**: Run this command to perform infrastructure discovery (network, Proxmox guests, or host facts).
+- **`/commit`**: Run this command to summarize your changes, update this README automatically, and sync everything to GitHub.
+
+To trigger an agent, simply type the command (e.g., `/scan`) in your request.
