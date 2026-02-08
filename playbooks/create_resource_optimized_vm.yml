@@ -115,11 +115,17 @@
       wait_for_connection:
         timeout: 300
 
-    - name: Update System
+    - name: Update Debian/Ubuntu systems
       apt:
         update_cache: yes
         upgrade: dist
-      when: ansible_os_family == 'Debian'
+      when: ansible_os_family == "Debian"
+
+    - name: Update RedHat systems
+      dnf:
+        name: "*"
+        state: latest
+      when: ansible_os_family == "RedHat"
 
     - name: Set root password
       user:

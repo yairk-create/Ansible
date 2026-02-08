@@ -7,11 +7,17 @@
     # user_password: "...encrypted_string..."
 
   tasks:
-    - name: Ensure system is updated
+    - name: Update Debian/Ubuntu hosts
       apt:
         update_cache: yes
         upgrade: dist
       when: ansible_os_family == 'Debian'
+
+    - name: Update RedHat/CentOS hosts
+      dnf:
+        name: "*"
+        state: latest
+      when: ansible_os_family == 'RedHat'
 
     - name: Install essential packages
       package:

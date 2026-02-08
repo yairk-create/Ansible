@@ -1,0 +1,30 @@
+---
+- name: Update Operating System
+  hosts: all
+  become: yes
+  tasks:
+    - name: Update Debian/Ubuntu systems
+      apt:
+        update_cache: yes
+        upgrade: dist
+        autoremove: yes
+      when: ansible_os_family == "Debian"
+
+    - name: Update RedHat/CentOS/Fedora systems
+      dnf:
+        name: "*"
+        state: latest
+        update_cache: yes
+      when: ansible_os_family == "RedHat"
+
+    - name: Update Arch Linux systems
+      pacman:
+        update_cache: yes
+        upgrade: yes
+      when: ansible_os_family == "Archlinux"
+
+    - name: Update Alpine Linux systems
+      apk:
+        update_cache: yes
+        upgrade: yes
+      when: ansible_os_family == "Alpine"
