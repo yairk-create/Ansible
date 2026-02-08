@@ -106,7 +106,7 @@
         ansible_user: root
         ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
 
-- name: Update and Inject Key inside the VM
+- name: Provision the New VM (Update, Users, and Key)
   hosts: temporarily_created_vms
   gather_facts: yes
   become: yes
@@ -115,18 +115,24 @@
       wait_for_connection:
         timeout: 300
 
+    # --- OS Selection-Aware Update ---
     - name: Update Debian/Ubuntu systems
-      apt:
-        update_cache: yes
-        upgrade: dist
+      apt: { update_cache: yes, upgrade: dist, autoremove: yes }
       when: ansible_os_family == "Debian"
 
     - name: Update RedHat systems
-      dnf:
-        name: "*"
-        state: latest
+      dnf: { name: "*", state: latest }
       when: ansible_os_family == "RedHat"
 
+    - name: Update Arch Linux systems
+      pacman: { update_cache: yes, upgrade: yes }
+      when: ansible_os_family == "Archlinux"
+
+    - name: Update Alpine Linux systems
+      apk: { update_cache: yes, upgrade: yes }
+      when: ansible_os_family == "Alpine"
+
+    # --- Identity & Security Setup ---
     - name: Set root password
       user:
         name: root
@@ -146,14 +152,14 @@
         append: yes
         state: present
 
-    - name: Allow 'yair' to use sudo without password
+    - name: Allow 'yair' passwordless sudo
       copy:
         content: "yair ALL=(ALL) NOPASSWD: ALL"
         dest: "/etc/sudoers.d/yair"
         mode: '0440'
         validate: "/usr/sbin/visudo -cf %s"
 
-    - name: Place Private PPK Key
+    - name: Place Private PPK Key inside VM
       copy:
         content: "{{ hostvars['localhost'].ppk_content }}"
         dest: "/root/rsa-key-20250722.ppk"
