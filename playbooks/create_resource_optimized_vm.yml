@@ -23,7 +23,7 @@
 
   vars:
     template_vmid: 500  # Default template ID found on your cluster
-    new_vmid: "{{ 1000 | random(start=1000, step=1) }}" 
+    new_vmid: "{{ 9999 | random(start=1000) }}" 
     ssh_public_key: "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC7UY67tBom83/SwISywjAjnk+moNdst/MZC7g587+aPvrzlQO49IFGPmAp6tiI59KfSX+hoZas/ZtQvsPBCryejQWus13FRuPYEMal21pnk4k/PvqI/uB8cqcyWUSwMk0JgS2Szg3K8NQgnx0Rs6ATSt= rsa-key-20250722"
     ppk_content: |
       PuTTY-User-Key-File-2: ssh-rsa
