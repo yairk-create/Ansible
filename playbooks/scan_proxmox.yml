@@ -1,0 +1,22 @@
+---
+- name: Scan Proxmox for Virtual Machines and Containers
+  hosts: proxmox_nodes
+  gather_facts: no
+  tasks:
+    - name: Get List of Virtual Machines (VMs)
+      command: qm list
+      register: qm_list
+      changed_when: false
+
+    - name: Get List of Containers (LXCs)
+      command: pct list
+      register: pct_list
+      changed_when: false
+
+    - name: Display Found Guests
+      debug:
+        msg:
+          - "--- Virtual Machines on {{ inventory_hostname }} ---"
+          - "{{ qm_list.stdout_lines }}"
+          - "--- Containers on {{ inventory_hostname }} ---"
+          - "{{ pct_list.stdout_lines }}"

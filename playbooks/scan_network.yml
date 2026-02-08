@@ -1,0 +1,28 @@
+---
+- name: Scan Local Network for Active Devices
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    subnet: "192.168.1.0/24"
+  tasks:
+    - name: Run Ping Sweep on Subnet
+      shell: "nmap -sn {{ subnet }} | grep 'Nmap scan report for' | awk '{print $NF}' | tr -d '()'"
+      register: network_scan
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Display Discovered IP Addresses
+      debug:
+        msg: "Discovered active IPs on {{ subnet }}: {{ network_scan.stdout_lines }}"
+
+    - name: Check if nmap is available
+      command: which nmap
+      register: nmap_check
+      ignore_errors: yes
+      changed_when: false
+
+    - name: Suggest nmap installation if missing
+      debug:
+        msg: "NOTE: 'nmap' is not installed. This scan will fail until you install it (e.g., 'sudo apt install nmap')."
+      when: nmap_check.rc != 0
