@@ -60,10 +60,13 @@
       Private-MAC: 8277c3177dc1463e2b5b26beb32684698155d623
 
   tasks:
-    - name: Selection Phase (Identify Best Node with Template)
+    - name: Identify Best Node (Calculated by each node)
       set_fact:
-        best_node: "{{ hostvars | dict2items | selectattr('key', 'in', groups['proxmox_nodes']) | selectattr('value.ansible_facts', 'defined') | selectattr('value.template_check.rc', 'defined') | selectattr('value.template_check.rc', 'equalto', 0) | sort(attribute='value.ansible_facts.memory_mb.real.free', reverse=true) | map(attribute='key') | first | default('') }}"
-      run_once: true
+        best_node: "{{ hostvars | dict2items | selectattr('key', 'in', groups['proxmox_nodes']) | selectattr('value.template_check', 'defined') | selectattr('value.template_check.rc', 'defined') | selectattr('value.template_check.rc', 'equalto', 0) | sort(attribute='value.ansible_facts.memory_mb.real.free', reverse=true) | map(attribute='key') | first | default('') }}"
+
+    - name: Debug Selection Result
+      debug:
+        msg: "I am '{{ inventory_hostname }}'. The calculated Best Node is '{{ best_node }}'. Memory Free: {{ ansible_facts.memory_mb.real.free }} MB. Template Valid: {{ template_check.rc == 0 }}"
 
     - name: Fail if no node has the template
       fail:
