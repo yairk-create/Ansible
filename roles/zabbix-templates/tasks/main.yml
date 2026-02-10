@@ -1,0 +1,252 @@
+---
+# This role imports Zabbix templates via the API.
+# It runs on localhost and talks to the Zabbix server API directly.
+
+- name: Authenticate to Zabbix API
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "user.login"
+      params:
+        username: "{{ zabbix_api_user }}"
+        password: "{{ zabbix_api_password }}"
+      id: 1
+    headers:
+      Content-Type: application/json
+  register: zabbix_auth
+  no_log: true
+
+- name: Set auth token
+  ansible.builtin.set_fact:
+    zabbix_token: "{{ zabbix_auth.json.result }}"
+  no_log: true
+
+- name: Read NFS client template file
+  ansible.builtin.slurp:
+    src: "{{ role_path }}/files/nfs_client_template.yaml"
+  register: client_template_content
+
+- name: Read NFS server template file
+  ansible.builtin.slurp:
+    src: "{{ role_path }}/files/nfs_server_template.yaml"
+  register: server_template_content
+
+- name: Import NFS Client Monitoring template
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "configuration.import"
+      params:
+        format: yaml
+        source: "{{ client_template_content.content | b64decode }}"
+        rules:
+          template_groups:
+            createMissing: true
+            updateExisting: true
+          templates:
+            createMissing: true
+            updateExisting: true
+          items:
+            createMissing: true
+            updateExisting: true
+          triggers:
+            createMissing: true
+            updateExisting: true
+          graphs:
+            createMissing: true
+            updateExisting: true
+          discoveryRules:
+            createMissing: true
+            updateExisting: true
+      auth: "{{ zabbix_token }}"
+      id: 2
+    headers:
+      Content-Type: application/json
+  register: client_import
+
+- name: Show client template import result
+  ansible.builtin.debug:
+    msg: "NFS Client Monitoring template imported: {{ client_import.json.result | default('check for errors') }}"
+
+- name: Import NFS Server Monitoring template
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "configuration.import"
+      params:
+        format: yaml
+        source: "{{ server_template_content.content | b64decode }}"
+        rules:
+          template_groups:
+            createMissing: true
+            updateExisting: true
+          templates:
+            createMissing: true
+            updateExisting: true
+          items:
+            createMissing: true
+            updateExisting: true
+          triggers:
+            createMissing: true
+            updateExisting: true
+          graphs:
+            createMissing: true
+            updateExisting: true
+          discoveryRules:
+            createMissing: true
+            updateExisting: true
+      auth: "{{ zabbix_token }}"
+      id: 3
+    headers:
+      Content-Type: application/json
+  register: server_import
+
+- name: Show server template import result
+  ansible.builtin.debug:
+    msg: "NFS Server Monitoring template imported: {{ server_import.json.result | default('check for errors') }}"
+
+# Link templates to hosts
+
+- name: Get host IDs for Proxmox nodes
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "host.get"
+      params:
+        filter:
+          host: "{{ groups['proxmox_nodes'] }}"
+        output:
+          - hostid
+          - host
+      auth: "{{ zabbix_token }}"
+      id: 4
+    headers:
+      Content-Type: application/json
+  register: proxmox_hosts
+
+- name: Get host ID for TrueNAS
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "host.get"
+      params:
+        filter:
+          host: "{{ groups['truenas'] }}"
+        output:
+          - hostid
+          - host
+      auth: "{{ zabbix_token }}"
+      id: 5
+    headers:
+      Content-Type: application/json
+  register: truenas_hosts
+
+- name: Get NFS Client Monitoring template ID
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "template.get"
+      params:
+        filter:
+          host: "NFS Client Monitoring"
+        output:
+          - templateid
+      auth: "{{ zabbix_token }}"
+      id: 6
+    headers:
+      Content-Type: application/json
+  register: client_template
+
+- name: Get NFS Server Monitoring template ID
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "template.get"
+      params:
+        filter:
+          host: "NFS Server Monitoring"
+        output:
+          - templateid
+      auth: "{{ zabbix_token }}"
+      id: 7
+    headers:
+      Content-Type: application/json
+  register: server_template
+
+- name: Link NFS Client template to Proxmox hosts
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "host.update"
+      params:
+        hostid: "{{ item.hostid }}"
+        templates:
+          - templateid: "{{ client_template.json.result[0].templateid }}"
+      auth: "{{ zabbix_token }}"
+      id: 8
+    headers:
+      Content-Type: application/json
+  loop: "{{ proxmox_hosts.json.result }}"
+  loop_control:
+    label: "{{ item.host }}"
+  when: proxmox_hosts.json.result | length > 0
+
+- name: Link NFS Server template to TrueNAS host
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "host.update"
+      params:
+        hostid: "{{ item.hostid }}"
+        templates:
+          - templateid: "{{ server_template.json.result[0].templateid }}"
+      auth: "{{ zabbix_token }}"
+      id: 9
+    headers:
+      Content-Type: application/json
+  loop: "{{ truenas_hosts.json.result }}"
+  loop_control:
+    label: "{{ item.host }}"
+  when: truenas_hosts.json.result | length > 0
+
+- name: Logout from Zabbix API
+  ansible.builtin.uri:
+    url: "{{ zabbix_api_url }}/api_jsonrpc.php"
+    method: POST
+    body_format: json
+    body:
+      jsonrpc: "2.0"
+      method: "user.logout"
+      params: []
+      auth: "{{ zabbix_token }}"
+      id: 10
+    headers:
+      Content-Type: application/json
+  no_log: true

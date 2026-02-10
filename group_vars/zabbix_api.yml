@@ -1,0 +1,7 @@
+---
+# Zabbix API settings for template import and host linking
+# CHANGE these to match your Zabbix server
+
+zabbix_api_url: "http://192.168.1.210:8080"  # or https://zabbix.yourdomain.com
+zabbix_api_user: "yair"
+zabbix_api_password: "L0cal1t8"  # CHANGE this - use ansible-vault in production

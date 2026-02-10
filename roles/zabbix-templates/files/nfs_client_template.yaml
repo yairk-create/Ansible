@@ -1,0 +1,218 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: custom_nfs_monitoring_group
+      name: 'Templates/Custom'
+  templates:
+    - uuid: nfs_client_monitoring_template
+      template: 'NFS Client Monitoring'
+      name: 'NFS Client Monitoring'
+      description: 'Full NFS client-side monitoring with mount status, latency, throughput, retransmissions, and kernel stats. Deploy via Ansible.'
+      groups:
+        - name: 'Templates/Custom'
+      items:
+        - uuid: nfs_rpc_total_calls
+          name: 'NFS RPC total calls per second'
+          key: 'nfs.rpc[rpc_calls]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        - uuid: nfs_rpc_retrans_global
+          name: 'NFS RPC retransmissions per second'
+          key: 'nfs.rpc[rpc_retrans]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+      discovery_rules:
+        - uuid: nfs_mount_discovery_rule
+          name: 'NFS mount discovery'
+          key: nfs.discovery
+          delay: '1h'
+          lifetime: '30d'
+          item_prototypes:
+            # Health checks
+            - uuid: nfs_item_mounted
+              name: 'NFS {#NFSMOUNT} mounted'
+              key: 'nfs.check[{#NFSMOUNT},mounted]'
+              delay: '1m'
+              value_type: UNSIGNED
+              description: '1=mounted, 0=not mounted'
+            - uuid: nfs_item_stale
+              name: 'NFS {#NFSMOUNT} stale check'
+              key: 'nfs.check[{#NFSMOUNT},stale]'
+              delay: '2m'
+              value_type: UNSIGNED
+              description: '0=healthy, 1=stale/hanging'
+            - uuid: nfs_item_write_latency
+              name: 'NFS {#NFSMOUNT} write latency'
+              key: 'nfs.check[{#NFSMOUNT},latency]'
+              delay: '5m'
+              value_type: UNSIGNED
+              units: ms
+              description: 'Write+read latency test in milliseconds. -1 if unreachable.'
+            - uuid: nfs_item_read_latency
+              name: 'NFS {#NFSMOUNT} read latency'
+              key: 'nfs.check[{#NFSMOUNT},read_latency]'
+              delay: '3m'
+              value_type: UNSIGNED
+              units: ms
+              description: 'Read-only latency test in milliseconds.'
+            # Throughput (counters, use change per second)
+            - uuid: nfs_item_read_ops
+              name: 'NFS {#NFSMOUNT} read ops/s'
+              key: 'nfs.client.stats[{#NFSMOUNT},read_ops]'
+              delay: '1m'
+              value_type: UNSIGNED
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+            - uuid: nfs_item_write_ops
+              name: 'NFS {#NFSMOUNT} write ops/s'
+              key: 'nfs.client.stats[{#NFSMOUNT},write_ops]'
+              delay: '1m'
+              value_type: UNSIGNED
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+            - uuid: nfs_item_read_bytes
+              name: 'NFS {#NFSMOUNT} read bytes/s'
+              key: 'nfs.client.stats[{#NFSMOUNT},read_bytes]'
+              delay: '1m'
+              value_type: UNSIGNED
+              units: B
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+            - uuid: nfs_item_write_bytes
+              name: 'NFS {#NFSMOUNT} write bytes/s'
+              key: 'nfs.client.stats[{#NFSMOUNT},write_bytes]'
+              delay: '1m'
+              value_type: UNSIGNED
+              units: B
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+            # Error counters
+            - uuid: nfs_item_retrans
+              name: 'NFS {#NFSMOUNT} retransmissions/s'
+              key: 'nfs.client.stats[{#NFSMOUNT},retrans]'
+              delay: '1m'
+              value_type: UNSIGNED
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+            - uuid: nfs_item_timeouts
+              name: 'NFS {#NFSMOUNT} timeouts/s'
+              key: 'nfs.client.stats[{#NFSMOUNT},timeouts]'
+              delay: '1m'
+              value_type: UNSIGNED
+              preprocessing:
+                - type: CHANGE_PER_SECOND
+                  parameters:
+                    - ''
+            # RTT from kernel
+            - uuid: nfs_item_read_rtt
+              name: 'NFS {#NFSMOUNT} read RTT'
+              key: 'nfs.client.stats[{#NFSMOUNT},read_rtt_avg]'
+              delay: '2m'
+              value_type: FLOAT
+              units: ms
+            - uuid: nfs_item_write_rtt
+              name: 'NFS {#NFSMOUNT} write RTT'
+              key: 'nfs.client.stats[{#NFSMOUNT},write_rtt_avg]'
+              delay: '2m'
+              value_type: FLOAT
+              units: ms
+            - uuid: nfs_item_read_exe
+              name: 'NFS {#NFSMOUNT} read execution time'
+              key: 'nfs.client.stats[{#NFSMOUNT},read_exe_avg]'
+              delay: '2m'
+              value_type: FLOAT
+              units: ms
+            - uuid: nfs_item_write_exe
+              name: 'NFS {#NFSMOUNT} write execution time'
+              key: 'nfs.client.stats[{#NFSMOUNT},write_exe_avg]'
+              delay: '2m'
+              value_type: FLOAT
+              units: ms
+          trigger_prototypes:
+            - uuid: nfs_trigger_not_mounted
+              expression: 'last(/NFS Client Monitoring/nfs.check[{#NFSMOUNT},mounted])=0'
+              name: 'NFS share {#NFSSOURCE} not mounted on {HOST.NAME}'
+              priority: HIGH
+              description: 'NFS mount has disappeared. Check fstab, TrueNAS exports, and network connectivity.'
+            - uuid: nfs_trigger_stale
+              expression: 'last(/NFS Client Monitoring/nfs.check[{#NFSMOUNT},stale])=1'
+              name: 'NFS mount {#NFSMOUNT} is stale on {HOST.NAME}'
+              priority: DISASTER
+              description: 'NFS mount is stale/hanging. Can cause process hangs and VM freezes. Check TrueNAS and network immediately.'
+            - uuid: nfs_trigger_write_latency_warn
+              expression: 'min(/NFS Client Monitoring/nfs.check[{#NFSMOUNT},latency],#3)>100'
+              name: 'NFS {#NFSMOUNT} high write latency on {HOST.NAME}'
+              priority: WARNING
+              description: 'Write latency above 100ms for last 3 checks.'
+            - uuid: nfs_trigger_write_latency_high
+              expression: 'min(/NFS Client Monitoring/nfs.check[{#NFSMOUNT},latency],#3)>500'
+              name: 'NFS {#NFSMOUNT} very high write latency on {HOST.NAME}'
+              priority: HIGH
+              description: 'Write latency above 500ms for last 3 checks. Storage may be overloaded.'
+            - uuid: nfs_trigger_retrans
+              expression: 'min(/NFS Client Monitoring/nfs.client.stats[{#NFSMOUNT},retrans],#3)>0'
+              name: 'NFS {#NFSMOUNT} retransmissions on {HOST.NAME}'
+              priority: WARNING
+              description: 'NFS retransmissions indicate packet loss between client and server. Check network.'
+            - uuid: nfs_trigger_timeouts
+              expression: 'min(/NFS Client Monitoring/nfs.client.stats[{#NFSMOUNT},timeouts],#3)>0'
+              name: 'NFS {#NFSMOUNT} timeouts on {HOST.NAME}'
+              priority: HIGH
+              description: 'NFS timeouts mean the server is not responding in time. Check TrueNAS load and NFS threads.'
+            - uuid: nfs_trigger_write_rtt
+              expression: 'min(/NFS Client Monitoring/nfs.client.stats[{#NFSMOUNT},write_rtt_avg],#3)>50'
+              name: 'NFS {#NFSMOUNT} write RTT high on {HOST.NAME}'
+              priority: WARNING
+              description: 'Average write round-trip time exceeding 50ms.'
+          graph_prototypes:
+            - uuid: nfs_graph_throughput
+              name: 'NFS {#NFSMOUNT} throughput'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: 'NFS Client Monitoring'
+                    key: 'nfs.client.stats[{#NFSMOUNT},read_bytes]'
+                - color: F63100
+                  item:
+                    host: 'NFS Client Monitoring'
+                    key: 'nfs.client.stats[{#NFSMOUNT},write_bytes]'
+            - uuid: nfs_graph_iops
+              name: 'NFS {#NFSMOUNT} IOPS'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: 'NFS Client Monitoring'
+                    key: 'nfs.client.stats[{#NFSMOUNT},read_ops]'
+                - color: F63100
+                  item:
+                    host: 'NFS Client Monitoring'
+                    key: 'nfs.client.stats[{#NFSMOUNT},write_ops]'
+            - uuid: nfs_graph_rtt
+              name: 'NFS {#NFSMOUNT} round-trip time'
+              graph_items:
+                - color: 199C0D
+                  item:
+                    host: 'NFS Client Monitoring'
+                    key: 'nfs.client.stats[{#NFSMOUNT},read_rtt_avg]'
+                - color: F63100
+                  item:
+                    host: 'NFS Client Monitoring'
+                    key: 'nfs.client.stats[{#NFSMOUNT},write_rtt_avg]'

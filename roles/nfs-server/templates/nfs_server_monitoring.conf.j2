@@ -1,0 +1,11 @@
+# NFS Server Monitoring - UserParameters
+# Managed by Ansible - do not edit manually
+
+# NFS export discovery
+UserParameter=nfs.server.discovery,{{ zabbix_scripts_dir }}/discover_nfs_exports.sh
+
+# Server health checks
+UserParameter=nfs.server.health[*],{{ zabbix_scripts_dir }}/nfs_server_health.sh "$1" "$2"
+
+# Server performance counters
+UserParameter=nfs.server.stats[*],{{ zabbix_scripts_dir }}/nfs_server_stats.sh "$1"

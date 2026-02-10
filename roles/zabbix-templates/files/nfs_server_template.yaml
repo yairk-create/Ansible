@@ -1,0 +1,276 @@
+zabbix_export:
+  version: '7.0'
+  template_groups:
+    - uuid: custom_nfs_monitoring_group
+      name: 'Templates/Custom'
+  templates:
+    - uuid: nfs_server_monitoring_template
+      template: 'NFS Server Monitoring'
+      name: 'NFS Server Monitoring'
+      description: 'Full NFS server-side monitoring for TrueNAS SCALE. Covers daemon health, connections, RPC stats, I/O, thread utilization, and cache. Deploy via Ansible.'
+      groups:
+        - name: 'Templates/Custom'
+      items:
+        # Health
+        - uuid: nfs_srv_daemon_status
+          name: 'NFS daemon status'
+          key: 'nfs.server.health[daemon_status]'
+          delay: '1m'
+          value_type: UNSIGNED
+          description: '1=running, 0=down'
+          valuemap:
+            name: 'Service state'
+        - uuid: nfs_srv_rpc_status
+          name: 'NFS RPC status'
+          key: 'nfs.server.health[rpc_status]'
+          delay: '1m'
+          value_type: UNSIGNED
+          description: '1=responding, 0=not responding'
+        - uuid: nfs_srv_connections
+          name: 'NFS active connections'
+          key: 'nfs.server.health[connections]'
+          delay: '1m'
+          value_type: UNSIGNED
+        - uuid: nfs_srv_client_count
+          name: 'NFS unique client count'
+          key: 'nfs.server.health[client_count]'
+          delay: '5m'
+          value_type: UNSIGNED
+        - uuid: nfs_srv_clients_list
+          name: 'NFS connected client IPs'
+          key: 'nfs.server.health[clients_list]'
+          delay: '10m'
+          value_type: TEXT
+          description: 'Comma-separated list of connected client IPs'
+        - uuid: nfs_srv_threads
+          name: 'NFS server threads'
+          key: 'nfs.server.health[nfsd_threads]'
+          delay: '5m'
+          value_type: UNSIGNED
+        # RPC
+        - uuid: nfs_srv_rpc_calls
+          name: 'NFS server RPC calls/s'
+          key: 'nfs.server.stats[rpc_calls]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        - uuid: nfs_srv_rpc_bad
+          name: 'NFS server bad RPCs/s'
+          key: 'nfs.server.stats[rpc_bad]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        # I/O
+        - uuid: nfs_srv_io_read
+          name: 'NFS server bytes read/s'
+          key: 'nfs.server.stats[io_read]'
+          delay: '1m'
+          value_type: UNSIGNED
+          units: B
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        - uuid: nfs_srv_io_write
+          name: 'NFS server bytes written/s'
+          key: 'nfs.server.stats[io_write]'
+          delay: '1m'
+          value_type: UNSIGNED
+          units: B
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        # NFSv4 ops
+        - uuid: nfs_srv_v4_total
+          name: 'NFS server v4 total ops/s'
+          key: 'nfs.server.stats[v4_total]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        - uuid: nfs_srv_v4_read
+          name: 'NFS server v4 reads/s'
+          key: 'nfs.server.stats[v4_read]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        - uuid: nfs_srv_v4_write
+          name: 'NFS server v4 writes/s'
+          key: 'nfs.server.stats[v4_write]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        - uuid: nfs_srv_v4_commit
+          name: 'NFS server v4 commits/s'
+          key: 'nfs.server.stats[v4_commit]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        - uuid: nfs_srv_v4_open
+          name: 'NFS server v4 opens/s'
+          key: 'nfs.server.stats[v4_open]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        # NFSv3 ops
+        - uuid: nfs_srv_v3_total
+          name: 'NFS server v3 total ops/s'
+          key: 'nfs.server.stats[v3_total]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        - uuid: nfs_srv_v3_read
+          name: 'NFS server v3 reads/s'
+          key: 'nfs.server.stats[v3_read]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        - uuid: nfs_srv_v3_write
+          name: 'NFS server v3 writes/s'
+          key: 'nfs.server.stats[v3_write]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        # Thread utilization
+        - uuid: nfs_srv_threads_fullcnt
+          name: 'NFS server threads full count/s'
+          key: 'nfs.server.stats[threads_fullcnt]'
+          delay: '1m'
+          value_type: UNSIGNED
+          description: 'Rate of times all NFS threads were busy. High values mean you need more threads.'
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        # Cache
+        - uuid: nfs_srv_cache_hits
+          name: 'NFS server cache hits/s'
+          key: 'nfs.server.stats[cache_hits]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+        - uuid: nfs_srv_cache_misses
+          name: 'NFS server cache misses/s'
+          key: 'nfs.server.stats[cache_misses]'
+          delay: '1m'
+          value_type: UNSIGNED
+          preprocessing:
+            - type: CHANGE_PER_SECOND
+              parameters:
+                - ''
+      discovery_rules:
+        - uuid: nfs_export_discovery_rule
+          name: 'NFS export discovery'
+          key: nfs.server.discovery
+          delay: '1h'
+          lifetime: '30d'
+          item_prototypes:
+            - uuid: nfs_srv_export_available
+              name: 'NFS export {#EXPORT} available'
+              key: 'nfs.server.health[export_available,{#EXPORT}]'
+              delay: '2m'
+              value_type: UNSIGNED
+              description: '1=available, 0=unavailable'
+          trigger_prototypes:
+            - uuid: nfs_srv_trigger_export_down
+              expression: 'last(/NFS Server Monitoring/nfs.server.health[export_available,{#EXPORT}])=0'
+              name: 'NFS export {#EXPORT} unavailable on {HOST.NAME}'
+              priority: HIGH
+              description: 'NFS export path is not accessible. Check dataset status and NFS sharing config.'
+      triggers:
+        - uuid: nfs_srv_trigger_daemon_down
+          expression: 'last(/NFS Server Monitoring/nfs.server.health[daemon_status])=0'
+          name: 'NFS daemon is down on {HOST.NAME}'
+          priority: DISASTER
+          description: 'NFS server process is not running. All NFS clients will be affected.'
+        - uuid: nfs_srv_trigger_rpc_down
+          expression: 'last(/NFS Server Monitoring/nfs.server.health[rpc_status])=0'
+          name: 'NFS RPC not responding on {HOST.NAME}'
+          priority: DISASTER
+          description: 'RPC portmapper is not responding for NFS. Service may be partially down.'
+        - uuid: nfs_srv_trigger_bad_rpc
+          expression: 'min(/NFS Server Monitoring/nfs.server.stats[rpc_bad],#3)>0'
+          name: 'NFS bad RPCs detected on {HOST.NAME}'
+          priority: WARNING
+          description: 'Malformed or unauthorized RPC requests. Could indicate client misconfiguration or version mismatch.'
+        - uuid: nfs_srv_trigger_threads_busy
+          expression: 'min(/NFS Server Monitoring/nfs.server.stats[threads_fullcnt],#5)>10'
+          name: 'NFS all threads busy on {HOST.NAME}'
+          priority: WARNING
+          description: 'All NFS threads are frequently saturated. Increase thread count in NFS settings.'
+        - uuid: nfs_srv_trigger_no_clients
+          expression: 'last(/NFS Server Monitoring/nfs.server.health[client_count])=0'
+          name: 'No NFS clients connected to {HOST.NAME}'
+          priority: INFO
+          description: 'No clients are connected over NFS. May be normal during maintenance.'
+      graphs:
+        - uuid: nfs_srv_graph_io
+          name: 'NFS server I/O throughput'
+          graph_items:
+            - color: 199C0D
+              item:
+                host: 'NFS Server Monitoring'
+                key: 'nfs.server.stats[io_read]'
+            - color: F63100
+              item:
+                host: 'NFS Server Monitoring'
+                key: 'nfs.server.stats[io_write]'
+        - uuid: nfs_srv_graph_ops
+          name: 'NFS server operations'
+          graph_items:
+            - color: 199C0D
+              item:
+                host: 'NFS Server Monitoring'
+                key: 'nfs.server.stats[v4_read]'
+            - color: F63100
+              item:
+                host: 'NFS Server Monitoring'
+                key: 'nfs.server.stats[v4_write]'
+            - color: 2774A4
+              item:
+                host: 'NFS Server Monitoring'
+                key: 'nfs.server.stats[v4_commit]'
+        - uuid: nfs_srv_graph_connections
+          name: 'NFS server connections'
+          graph_items:
+            - color: 199C0D
+              item:
+                host: 'NFS Server Monitoring'
+                key: 'nfs.server.health[connections]'
+            - color: 2774A4
+              item:
+                host: 'NFS Server Monitoring'
+                key: 'nfs.server.health[client_count]'

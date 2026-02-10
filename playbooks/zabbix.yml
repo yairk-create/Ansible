@@ -1,0 +1,44 @@
+---
+# NFS Monitoring - Full Deployment
+#
+# Deploys NFS monitoring across all Proxmox nodes and TrueNAS,
+# imports Zabbix templates, and links them to hosts.
+#
+# Usage:
+#   # Full deployment (agents + templates):
+#   ansible-playbook -i inventories/hosts.yml site.yml
+#
+#   # Only deploy agents and scripts (skip Zabbix API):
+#   ansible-playbook -i inventories/hosts.yml site.yml --tags agents
+#
+#   # Only import templates and link hosts:
+#   ansible-playbook -i inventories/hosts.yml site.yml --tags templates
+#
+#   # Only Proxmox nodes:
+#   ansible-playbook -i inventories/hosts.yml site.yml --limit proxmox_nodes
+#
+#   # Only TrueNAS:
+#   ansible-playbook -i inventories/hosts.yml site.yml --limit truenas
+
+- name: Deploy NFS client monitoring to Proxmox nodes
+  hosts: proxmox_nodes
+  become: true
+  tags: agents
+  roles:
+    - nfs-client
+
+- name: Deploy NFS server monitoring to TrueNAS
+  hosts: truenas
+  become: true
+  tags: agents
+  roles:
+    - nfs-server
+
+- name: Import Zabbix templates and link to hosts
+  hosts: localhost
+  connection: local
+  tags: templates
+  vars_files:
+    - group_vars/zabbix_api.yml
+  roles:
+    - zabbix-templates

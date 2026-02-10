@@ -1,0 +1,14 @@
+# NFS Client Monitoring - UserParameters
+# Managed by Ansible - do not edit manually
+
+# NFS mount discovery
+UserParameter=nfs.discovery,{{ zabbix_scripts_dir }}/discover_nfs.sh
+
+# Per-mount health checks
+UserParameter=nfs.check[*],{{ zabbix_scripts_dir }}/check_nfs.sh "$1" "$2"
+
+# Per-mount kernel statistics (counters)
+UserParameter=nfs.client.stats[*],{{ zabbix_scripts_dir }}/nfs_client_stats.sh "$1" "$2"
+
+# Global RPC stats
+UserParameter=nfs.rpc[*],{{ zabbix_scripts_dir }}/nfs_rpc_stats.sh "$1"

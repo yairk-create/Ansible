@@ -1,0 +1,4 @@
+---
+# Connection variables for TrueNAS Hosts
+ansible_user: root
+ansible_password: L0cal1t8

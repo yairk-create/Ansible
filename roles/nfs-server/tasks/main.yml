@@ -1,0 +1,112 @@
+---
+- name: Check if zabbix-agent2 is installed
+  ansible.builtin.command:
+    cmd: dpkg -l zabbix-agent2
+  register: agent_check
+  changed_when: false
+  failed_when: false
+
+- name: Install zabbix-agent2 on TrueNAS SCALE
+  when: agent_check.rc != 0
+  block:
+    - name: Download Zabbix release package
+      ansible.builtin.get_url:
+        url: "https://repo.zabbix.com/zabbix/7.0/debian/pool/main/z/zabbix-release/zabbix-release_latest_7.0+debian12_all.deb"
+        dest: /tmp/zabbix-release.deb
+        mode: "0644"
+
+    - name: Install Zabbix release package
+      ansible.builtin.apt:
+        deb: /tmp/zabbix-release.deb
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+
+    - name: Install zabbix-agent2
+      ansible.builtin.apt:
+        name: zabbix-agent2
+        state: present
+
+    - name: Clean up release package
+      ansible.builtin.file:
+        path: /tmp/zabbix-release.deb
+        state: absent
+
+- name: Configure zabbix-agent2 Server
+  ansible.builtin.lineinfile:
+    path: "{{ zabbix_agent_conf }}"
+    regexp: '^Server='
+    line: "Server={{ zabbix_server_ip }}"
+  notify: restart zabbix-agent2
+
+- name: Configure zabbix-agent2 ServerActive
+  ansible.builtin.lineinfile:
+    path: "{{ zabbix_agent_conf }}"
+    regexp: '^ServerActive='
+    line: "ServerActive={{ zabbix_server_ip }}"
+  notify: restart zabbix-agent2
+
+- name: Configure zabbix-agent2 Hostname
+  ansible.builtin.lineinfile:
+    path: "{{ zabbix_agent_conf }}"
+    regexp: '^Hostname='
+    line: "Hostname={{ inventory_hostname }}"
+  notify: restart zabbix-agent2
+
+- name: Create scripts directory
+  ansible.builtin.file:
+    path: "{{ zabbix_scripts_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Deploy NFS server monitoring scripts
+  ansible.builtin.copy:
+    src: "scripts/{{ item }}"
+    dest: "{{ zabbix_scripts_dir }}/{{ item }}"
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - discover_nfs_exports.sh
+    - nfs_server_health.sh
+    - nfs_server_stats.sh
+
+- name: Deploy NFS server UserParameter config
+  ansible.builtin.template:
+    src: nfs_server_monitoring.conf.j2
+    dest: "{{ zabbix_agent_confd }}/nfs_server_monitoring.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: restart zabbix-agent2
+
+- name: Ensure zabbix-agent2 is enabled and running
+  ansible.builtin.systemd:
+    name: zabbix-agent2
+    enabled: true
+    state: started
+
+- name: Verify NFS export discovery returns data
+  ansible.builtin.command:
+    cmd: zabbix_agent2 -t nfs.server.discovery
+  register: nfs_export_test
+  changed_when: false
+  failed_when: false
+
+- name: Show export discovery test result
+  ansible.builtin.debug:
+    msg: "{{ nfs_export_test.stdout }}"
+
+- name: Verify NFS daemon status check
+  ansible.builtin.command:
+    cmd: zabbix_agent2 -t "nfs.server.health[daemon_status]"
+  register: nfs_daemon_test
+  changed_when: false
+  failed_when: false
+
+- name: Show daemon status test result
+  ansible.builtin.debug:
+    msg: "{{ nfs_daemon_test.stdout }}"
