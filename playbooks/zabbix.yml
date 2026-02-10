@@ -39,6 +39,6 @@
   connection: local
   tags: templates
   vars_files:
-    - group_vars/zabbix_api.yml
+    - ../inventory/group_vars/zabbix_api.yml
   roles:
     - zabbix-templates

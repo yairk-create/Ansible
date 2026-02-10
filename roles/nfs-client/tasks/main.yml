@@ -53,6 +53,7 @@
     - check_nfs.sh
     - nfs_client_stats.sh
     - nfs_rpc_stats.sh
+    - nfs_space_check.sh
 
 - name: Deploy NFS client UserParameter config
   ansible.builtin.template:

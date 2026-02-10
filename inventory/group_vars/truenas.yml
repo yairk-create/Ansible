@@ -2,3 +2,8 @@
 # Connection variables for TrueNAS Hosts
 ansible_user: root
 ansible_password: L0cal1t8
+
+# SNMP Monitoring settings
+snmp_community: public
+snmp_version: 2
+snmp_port: 161

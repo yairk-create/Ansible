@@ -5,6 +5,7 @@
   register: agent_check
   changed_when: false
   failed_when: false
+  check_mode: no
 
 - name: Install zabbix-agent2 on TrueNAS SCALE
   when: agent_check.rc != 0
